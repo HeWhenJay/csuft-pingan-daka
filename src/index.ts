@@ -5,6 +5,10 @@ import { createHash } from 'node:crypto';
 
 import * as types from './types.js';
 
+const schoolAxios = axios.create({
+    proxy: false,
+});
+
 // 对学校接口的底层封装。
 // 这里负责登录、读取任务详情、校验定位距离，并最终提交签到数据。
 export function md5(data: string): string {
@@ -120,7 +124,7 @@ export class unsafeDorm {
         /** img is png file in base64, already have header data:image/png;base64, */
         img: string;
     }> {
-        const request = await axios.get(
+        const request = await schoolAxios.get(
             `${this.baseUrl}${constant.CAPTCHA_API_URL}`,
             {
                 headers: {
@@ -156,7 +160,7 @@ export class unsafeDorm {
 
         console.log(postBody);
 
-        const request = await axios.post(
+        const request = await schoolAxios.post(
             `${this.baseUrl}${constant.LOGIN_API_URL}`,
             postBody,
             {
@@ -180,7 +184,7 @@ export class unsafeDorm {
     }
 
     async signInWithOpenId() {
-        const request = await axios.post(
+        const request = await schoolAxios.post(
             `${this.baseUrl}${constant.LOGIN_API_URL}`,
             {
                 // 000000 is the default now.
@@ -259,7 +263,7 @@ export class unsafeDorm {
 
         const requestUrl = `${this.baseUrl}${constant.LIST_TASK_API_URL}?current=${currentPage}&size=${pageSize}`;
 
-        const request = await axios.get(requestUrl, {
+        const request = await schoolAxios.get(requestUrl, {
             headers: {
                 'User-Agent': this.userAgent,
                 Authorization: `Basic ${constant.BASE_TOKEN_FOR_AUTHORIZATION}`,
@@ -287,7 +291,7 @@ export class unsafeDorm {
 
         const requestUrl = `${this.baseUrl}${constant.GET_TASK_API_URL}?taskId=${taskId}`;
 
-        const request = await axios.get(requestUrl, {
+        const request = await schoolAxios.get(requestUrl, {
             headers: {
                 'User-Agent': this.userAgent,
                 Authorization: `Basic ${constant.BASE_TOKEN_FOR_AUTHORIZATION}`,
@@ -321,7 +325,7 @@ export class unsafeDorm {
 
         const requestUrl = `${this.baseUrl}${constant.GET_RECORD_STATUS_API_URL}?taskId=${taskId}`;
 
-        const request = await axios.get(requestUrl, {
+        const request = await schoolAxios.get(requestUrl, {
             headers: {
                 'User-Agent': this.userAgent,
                 'Flysource-Sign': this.calcSignHeader(
@@ -449,7 +453,7 @@ export class unsafeDorm {
 
         const requestUrl = `${this.baseUrl}${constant.SIGN_RECORD_API_URL}`;
 
-        const request = await axios.post(requestUrl, stuSignData, {
+        const request = await schoolAxios.post(requestUrl, stuSignData, {
             headers: {
                 'Content-Type': 'application/json',
                 'User-Agent': this.userAgent,
