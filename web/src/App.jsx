@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import {
     CalendarDays,
     CalendarRange,
@@ -7,14 +7,36 @@ import {
     Clock3,
     KeyRound,
     LoaderCircle,
+    Moon,
     Plus,
+    Palette,
     Radar,
     Save,
     Send,
     ShieldCheck,
+    Sun,
     Trash2,
     UserRound,
 } from 'lucide-react';
+
+const appearanceAccents = [
+    { id: 'teal', label: '青绿', value: '#0f766e' },
+    { id: 'blue', label: '蓝色', value: '#2563eb' },
+    { id: 'rose', label: '玫红', value: '#be185d' },
+];
+
+function getStoredAppearance() {
+    try {
+        const stored = JSON.parse(window.localStorage.getItem('csuft-appearance') || '{}');
+        const theme = stored.theme === 'dark' || stored.theme === 'light'
+            ? stored.theme
+            : window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        const accent = appearanceAccents.some((option) => option.id === stored.accent) ? stored.accent : 'teal';
+        return { theme, accent };
+    } catch {
+        return { theme: 'light', accent: 'teal' };
+    }
+}
 
 // 前端总控页面：
 // 负责多 OpenID 管理、手动签到、OpenID 抓取和定时任务配置。
@@ -158,6 +180,7 @@ function joinOpenIds(openids) {
 }
 
 export default function App() {
+    const [appearance, setAppearance] = useState(getStoredAppearance);
     const [clock, setClock] = useState(() => new Date());
     const [openidInput, setOpenidInput] = useState('');
     const [openidList, setOpenidList] = useState([]);
@@ -179,6 +202,12 @@ export default function App() {
     const [isCapturing, setIsCapturing] = useState(false);
     const [inlineError, setInlineError] = useState('');
     const [serverReady, setServerReady] = useState(false);
+
+    useLayoutEffect(() => {
+        document.documentElement.dataset.theme = appearance.theme;
+        document.documentElement.dataset.accent = appearance.accent;
+        window.localStorage.setItem('csuft-appearance', JSON.stringify(appearance));
+    }, [appearance]);
 
     useEffect(() => {
         const timer = window.setInterval(() => {
@@ -612,6 +641,39 @@ export default function App() {
                     </div>
                 </div>
                 <div className="header-meta">
+                    <div className="appearance-controls" aria-label="界面外观设置">
+                        <button
+                            type="button"
+                            className="theme-toggle"
+                            aria-label={appearance.theme === 'dark' ? '切换到白昼模式' : '切换到黑夜模式'}
+                            title={appearance.theme === 'dark' ? '切换到白昼模式' : '切换到黑夜模式'}
+                            aria-pressed={appearance.theme === 'dark'}
+                            onClick={() => setAppearance((current) => ({
+                                ...current,
+                                theme: current.theme === 'dark' ? 'light' : 'dark',
+                            }))}
+                        >
+                            {appearance.theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+                        </button>
+                        <span className="appearance-divider" aria-hidden="true" />
+                        <Palette size={15} aria-hidden="true" />
+                        <div className="accent-picker" role="group" aria-label="界面颜色">
+                            {appearanceAccents.map((option) => (
+                                <button
+                                    key={option.id}
+                                    type="button"
+                                    className={`accent-swatch ${appearance.accent === option.id ? 'is-selected' : ''}`}
+                                    style={{ '--swatch-color': option.value }}
+                                    aria-label={`使用${option.label}界面颜色`}
+                                    title={`使用${option.label}界面颜色`}
+                                    aria-pressed={appearance.accent === option.id}
+                                    onClick={() => setAppearance((current) => ({ ...current, accent: option.id }))}
+                                >
+                                    <span aria-hidden="true" />
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                     <span className={serverReady ? 'service-indicator is-online' : 'service-indicator is-connecting'}>
                         <span className="status-dot" aria-hidden="true" />
                         {serverReady ? '本地服务已连接' : '正在连接本地服务'}
