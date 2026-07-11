@@ -2,6 +2,7 @@ import EventEmitter from 'node:events';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
 import 'dotenv/config';
+import axios from 'axios';
 import main from './main.js';
 import type { MainEvents, MainLoopResult } from './main.js';
 
@@ -10,6 +11,42 @@ export type { MainEvents, MainLoopResult, OpenIdRunResult, OpenIdRunStatus } fro
 interface LogEvents {
     log: [...args: any[]];
     error: [...args: any[]];
+}
+
+function stringifyResponseData(data: unknown): string {
+    if (typeof data === 'string') {
+        return data.replace(/\s+/g, ' ').trim();
+    }
+
+    try {
+        return JSON.stringify(data);
+    }
+    catch {
+        return String(data);
+    }
+}
+
+function formatErrorForLog(error: unknown): string {
+    if (axios.isAxiosError(error)) {
+        const response = error.response;
+        const base = `${error.name}: ${error.message}`;
+        if (!response) {
+            return error.stack ?? base;
+        }
+
+        const responseData = stringifyResponseData(response.data).slice(0, 1200);
+        return [
+            base,
+            `status=${response.status} ${response.statusText}`,
+            `response=${responseData}`,
+        ].join('; ');
+    }
+
+    if (error instanceof Error) {
+        return error.stack ?? error.message;
+    }
+
+    return String(error);
 }
 
 export async function mainLoop(): Promise<MainLoopResult> {
@@ -38,7 +75,7 @@ export async function mainLoop(): Promise<MainLoopResult> {
     });
 
     events.on('error', (error) => {
-        logEvents.emit('error', '发生错误:', error);
+        logEvents.emit('error', '发生错误:', formatErrorForLog(error));
     });
 
     events.on('start', (openid) => {
