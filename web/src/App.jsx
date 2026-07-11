@@ -12,7 +12,6 @@ import {
     Save,
     Send,
     ShieldCheck,
-    Sparkles,
     Trash2,
     UserRound,
 } from 'lucide-react';
@@ -165,7 +164,7 @@ export default function App() {
     const [savedOpenidList, setSavedOpenidList] = useState([]);
     const [debuggerWsUrl, setDebuggerWsUrl] = useState('');
     const [logs, setLogs] = useState([
-        createLog('页面已就绪，先准备 OpenID，再发起签到。'),
+        createLog('控制台已就绪。'),
     ]);
     const [summary, setSummary] = useState(initialSummary);
     const [captureSummary, setCaptureSummary] = useState(initialCaptureSummary);
@@ -173,7 +172,7 @@ export default function App() {
     const [schedule, setSchedule] = useState(initialSchedule);
     const [scheduleMeta, setScheduleMeta] = useState(initialScheduleMeta);
     const [scheduleDateInput, setScheduleDateInput] = useState('');
-    const [captureStatus, setCaptureStatus] = useState('准备好后，点一次按钮即可自动安装并启动 mitmproxy 抓取环境。');
+    const [captureStatus, setCaptureStatus] = useState('捕获服务未启动。');
     const [isSaving, setIsSaving] = useState(false);
     const [isSavingSchedule, setIsSavingSchedule] = useState(false);
     const [isRunning, setIsRunning] = useState(false);
@@ -234,34 +233,35 @@ export default function App() {
     }, []);
 
     const pendingChanges = joinOpenIds(openidList) !== joinOpenIds(savedOpenidList);
-    const captureButtonLabel = '一键获取 OpenID';
+    const runAccountCount = parseOpenIds([...openidList, ...parseOpenIds(openidInput)]).length;
+    const captureButtonLabel = '启动捕获';
 
     const headline = useMemo(() => {
         if (summary.signedSuccess) {
-            return '本次签到已经提交成功';
+            return '签到成功';
         }
 
         if (summary.alreadySigned) {
-            return '今天已经签过了';
+            return '今日已签到';
         }
 
         if (summary.withinTimeWindow === false) {
-            return '当前不在签到时间内';
+            return '不在签到时段';
         }
 
         if (summary.error) {
-            return '这次执行没有走通';
+            return '签到任务失败';
         }
 
         if (isRunning) {
-            return '正在完成平安打卡流程';
+            return '正在执行签到任务';
         }
 
         if (isCapturing) {
-            return '正在自动准备抓取环境';
+            return '正在启动捕获服务';
         }
 
-        return 'CSUFT 平安打卡签到系统';
+        return '等待执行';
     }, [isCapturing, isRunning, summary]);
 
     async function refreshDebuggerStatus() {
@@ -343,7 +343,7 @@ export default function App() {
             setSavedOpenidList(savedList);
             setOpenidInput('');
             setLogs((current) => [
-                createLog('OpenID 已保存到本地 .env。', 'success'),
+                createLog('账号配置已保存。', 'success'),
                 ...current,
             ]);
         }
@@ -420,11 +420,11 @@ export default function App() {
 
     function handleCapture() {
         setCaptureSummary(initialCaptureSummary);
-        setCaptureStatus('正在准备本地抓取环境。缺失时会自动下载 mitmproxy。');
+        setCaptureStatus('正在启动 OpenID 捕获服务。');
         setIsCapturing(true);
         setInlineError('');
         setLogs((current) => [
-            createLog('开始准备 OpenID 抓取环境；如果 mitmproxy 缺失，会先自动下载安装。'),
+            createLog('正在启动 OpenID 捕获服务。'),
             ...current,
         ]);
 
@@ -445,7 +445,7 @@ export default function App() {
                 return next;
             });
             setSavedOpenidList((current) => Array.from(new Set([...current, payload.openid])));
-            setCaptureStatus('已拿到 OpenID，并写入本地 .env。');
+            setCaptureStatus('OpenID 已捕获并保存。');
             setLogs((current) => [
                 createLog(`已捕获 OpenID：${payload.openid}，当前共 ${totalAccounts} 个账号。`, 'success'),
                 ...current,
@@ -470,7 +470,7 @@ export default function App() {
             refreshDebuggerStatus();
             setLogs((current) => [
                 createLog(
-                    payload.error ?? (payload.openid ? 'OpenID 已自动保存，可直接去签到。' : 'OpenID 捕获结束。'),
+                    payload.error ?? (payload.openid ? 'OpenID 已保存。' : 'OpenID 捕获结束。'),
                     payload.error ? 'error' : 'success',
                 ),
                 ...current,
@@ -496,7 +496,7 @@ export default function App() {
         setIsRunning(true);
         setSummary(initialSummary);
         setLogs([
-            createLog(`已发起新的签到任务，将为 ${normalizedList.length} 个账号按顺序签到。`),
+            createLog(`签到任务已启动：${normalizedList.length} 个账号。`),
         ]);
 
         const source = new EventSource(`/api/sign-in/stream?openid=${encodeURIComponent(normalizedList.join(','))}`);
@@ -516,7 +516,7 @@ export default function App() {
 
         source.addEventListener('wait', (event) => {
             const payload = JSON.parse(event.data);
-            addLog(`等待 ${(payload.durationMs / 1000).toFixed(1)} 秒，规避风控。`);
+            addLog(`账号间隔：${(payload.durationMs / 1000).toFixed(1)} 秒。`);
         });
 
         source.addEventListener('log', (event) => {
@@ -566,7 +566,7 @@ export default function App() {
 
         source.addEventListener('signRecordResponse', (event) => {
             const payload = JSON.parse(event.data);
-            addLog(payload.signedSuccess ? '签到提交成功。' : '签到提交未成功。', payload.signedSuccess ? 'success' : 'warning');
+            addLog(payload.signedSuccess ? '签到提交成功。' : '签到提交失败。', payload.signedSuccess ? 'success' : 'warning');
             setSummary((current) => ({
                 ...current,
                 signedSuccess: payload.signedSuccess,
@@ -600,90 +600,111 @@ export default function App() {
     }
 
     return (
-        <main className="shell">
-            <section className="hero">
-                <div className="hero-copy">
-                    <span className="eyebrow">CSUFT Unsafe Dorm</span>
-                    <h1>{headline}</h1>
-                    <p>
-                        现在这个页面既能做签到，也能自动准备抓取环境来获取 <code>OpenID</code>。
-                        页面默认使用 <code>mitmproxy</code> 本地代理抓取 OpenID；如果本机缺失
-                        <code> mitmdump </code>，点击后会自动下载安装，不再默认回退到
-                        <code> WMPFDebugger </code>。
-                    </p>
+        <main className="app-shell">
+            <header className="app-header">
+                <div className="brand-lockup">
+                    <span className="brand-mark" aria-hidden="true">
+                        <ShieldCheck size={22} />
+                    </span>
+                    <div>
+                        <span className="brand-kicker">CSUFT</span>
+                        <h1>平安打卡控制台</h1>
+                    </div>
                 </div>
-                <div className={`hero-status tone-${statusTone(summary)}`}>
-                    <div className="status-row">
-                        <Clock3 size={18} />
-                        <span>{formatClock(clock)}</span>
+                <div className="header-meta">
+                    <span className={serverReady ? 'service-indicator is-online' : 'service-indicator is-connecting'}>
+                        <span className="status-dot" aria-hidden="true" />
+                        {serverReady ? '本地服务已连接' : '正在连接本地服务'}
+                    </span>
+                    <time dateTime={clock.toISOString()}>{formatClock(clock)}</time>
+                </div>
+            </header>
+
+            <section className={`run-status tone-${statusTone(summary)}`} aria-live="polite">
+                <div className="run-status-title">
+                    {summary.error ? (
+                        <CircleAlert size={20} />
+                    ) : summary.signedSuccess || summary.alreadySigned ? (
+                        <BadgeCheck size={20} />
+                    ) : isRunning || isCapturing ? (
+                        <LoaderCircle className="spin" size={20} />
+                    ) : (
+                        <ShieldCheck size={20} />
+                    )}
+                    <div>
+                        <span>执行状态</span>
+                        <strong>{headline}</strong>
                     </div>
-                    <div className="status-row">
-                        <ShieldCheck size={18} />
-                        <span>{serverReady ? '本地服务已连接' : '正在连接本地服务'}</span>
-                    </div>
-                    <div className="status-row">
-                        {isRunning ? <LoaderCircle className="spin" size={18} /> : <BadgeCheck size={18} />}
-                        <span>{isRunning ? '签到进行中' : '等待发起签到'}</span>
-                    </div>
+                </div>
+                <div className="run-status-meta">
+                    <span>{openidList.length} 个签到账号</span>
+                    <span>{scheduleMeta.runtimeActive ? `定时任务 ${schedule.time}` : '定时任务未运行'}</span>
                 </div>
             </section>
 
-            <section className="workspace">
-                <div className="control-panel">
-                    <div className="section-heading">
-                        <h2>配置与执行</h2>
-                        <p>把账号入口管好，然后让脚本自己走完整个流程。</p>
-                    </div>
+            <div className="console-grid">
+                <section className="panel accounts-panel" aria-labelledby="accounts-title">
+                    <header className="panel-header">
+                        <div>
+                            <h2 id="accounts-title">签到账号</h2>
+                            <p>管理 OpenID 并执行手动签到。</p>
+                        </div>
+                        <span className="count-badge">{openidList.length} 个账号</span>
+                    </header>
 
-                    <label className="field">
-                        <span className="field-label">OpenID 列表</span>
-                        <div className="field-input">
-                            <KeyRound size={18} />
-                            <input
-                                type="text"
-                                value={openidInput}
-                                onChange={(event) => setOpenidInput(event.target.value)}
-                                onKeyDown={(event) => {
-                                    if (event.key === 'Enter') {
-                                        event.preventDefault();
-                                        addOpenId();
-                                    }
-                                }}
-                                placeholder="输入一个 OpenID，按回车或点加入按钮"
-                            />
+                    <div className="field-group">
+                        <label className="field-label" htmlFor="openid-input">OpenID</label>
+                        <div className="input-action-row">
+                            <div className="field-input">
+                                <KeyRound size={18} aria-hidden="true" />
+                                <input
+                                    id="openid-input"
+                                    type="text"
+                                    value={openidInput}
+                                    onChange={(event) => setOpenidInput(event.target.value)}
+                                    onKeyDown={(event) => {
+                                        if (event.key === 'Enter') {
+                                            event.preventDefault();
+                                            addOpenId();
+                                        }
+                                    }}
+                                    placeholder="输入 OpenID"
+                                />
+                            </div>
                             <button
                                 type="button"
-                                className="chip-action"
+                                className="secondary-button add-button"
                                 onClick={() => addOpenId()}
-                                disabled={isSaving || isRunning || isCapturing}
+                                disabled={isSaving || isRunning || isCapturing || !openidInput.trim()}
                             >
-                                <Plus size={16} />
-                                <span>加入</span>
+                                <Plus size={17} />
+                                <span>添加</span>
                             </button>
                         </div>
-                    </label>
+                    </div>
 
-                    <div className="openid-panel">
-                        <div className="openid-panel-header">
-                            <span>当前待签到账号</span>
-                            <strong>{openidList.length} 个</strong>
-                        </div>
-                        <div className="openid-chip-list">
-                            {openidList.length > 0 ? openidList.map((item) => (
+                    <div className="account-list" aria-label="签到账号列表">
+                        {openidList.length > 0 ? openidList.map((item) => (
+                            <div key={item} className="account-row">
+                                <code title={item}>{item}</code>
                                 <button
-                                    key={item}
                                     type="button"
-                                    className="openid-chip"
+                                    className="icon-button danger-button"
                                     onClick={() => removeOpenId(item)}
                                     disabled={isSaving || isRunning || isCapturing}
+                                    aria-label={`移除 OpenID ${item}`}
+                                    title="移除账号"
                                 >
-                                    <span>{item}</span>
-                                    <Trash2 size={14} />
+                                    <Trash2 size={16} />
                                 </button>
-                            )) : (
-                                <span className="helper-text">还没有加入账号，支持手动添加和一键捕获后自动追加。</span>
-                            )}
-                        </div>
+                            </div>
+                        )) : (
+                            <div className="empty-state">
+                                <KeyRound size={20} aria-hidden="true" />
+                                <span>暂无签到账号</span>
+                                <a href="#openid-capture">获取 OpenID</a>
+                            </div>
+                        )}
                     </div>
 
                     <div className="action-row">
@@ -691,78 +712,81 @@ export default function App() {
                             type="button"
                             className="secondary-button"
                             onClick={handleSave}
-                            disabled={isSaving || isRunning || isCapturing}
+                            disabled={isSaving || isRunning || isCapturing || runAccountCount === 0}
                         >
                             <Save size={18} />
-                            <span>{isSaving ? '保存中' : '保存配置'}</span>
+                            <span>{isSaving ? '保存中' : '保存账号'}</span>
                         </button>
                         <button
                             type="button"
                             className="primary-button"
                             onClick={handleRun}
-                            disabled={isRunning || isCapturing}
+                            disabled={isRunning || isCapturing || runAccountCount === 0}
                         >
                             {isRunning ? <LoaderCircle className="spin" size={18} /> : <Send size={18} />}
-                            <span>{isRunning ? '签到进行中' : `立即为 ${Math.max(openidList.length, 1)} 个账号签到`}</span>
+                            <span>{isRunning ? '正在签到' : `执行签到（${runAccountCount}）`}</span>
                         </button>
                     </div>
 
                     {inlineError ? (
-                        <div className="inline-feedback tone-error">
+                        <div className="inline-feedback tone-error" role="alert">
                             <CircleAlert size={16} />
                             <span>{inlineError}</span>
                         </div>
                     ) : null}
 
                     {pendingChanges ? (
-                        <div className="inline-feedback tone-warning">
+                        <div className="inline-feedback tone-warning" role="status">
                             <CircleAlert size={16} />
-                            <span>当前输入还没保存到本地 .env。</span>
+                            <span>账号配置有未保存的更改。</span>
                         </div>
                     ) : null}
 
-                    <div className="fact-strip">
-                        <article>
-                            <span>任务开始</span>
-                            <strong>{formatDateTime(summary.startedAt)}</strong>
-                        </article>
-                        <article>
-                            <span>任务结束</span>
-                            <strong>{formatDateTime(summary.completedAt)}</strong>
-                        </article>
-                        <article>
-                            <span>当前状态</span>
-                            <strong>{summary.signStatus ?? '待获取'}</strong>
-                        </article>
-                    </div>
-                </div>
+                    <dl className="metadata-grid">
+                        <div>
+                            <dt>任务开始</dt>
+                            <dd>{formatDateTime(summary.startedAt)}</dd>
+                        </div>
+                        <div>
+                            <dt>任务结束</dt>
+                            <dd>{formatDateTime(summary.completedAt)}</dd>
+                        </div>
+                        <div>
+                            <dt>签到状态</dt>
+                            <dd>{summary.signStatus ?? '待获取'}</dd>
+                        </div>
+                    </dl>
+                </section>
 
-                <div className="overview">
-                    <div className="section-heading">
-                        <h2>结果概览</h2>
-                        <p>这块只保留你最关心的四件事，不让日志淹没人。</p>
-                    </div>
+                <section className="panel result-panel" aria-labelledby="result-title">
+                    <header className="panel-header">
+                        <div>
+                            <h2 id="result-title">最近结果</h2>
+                            <p>最近一次签到任务的执行信息。</p>
+                        </div>
+                        <span className={`panel-status tone-${statusTone(summary)}`}>{headline}</span>
+                    </header>
 
-                    <div className="overview-grid">
-                        <article className="metric">
+                    <div className="result-grid">
+                        <div>
                             <span>登录</span>
                             <strong>{summary.loginSuccess ? '成功' : '未确认'}</strong>
-                        </article>
-                        <article className="metric">
-                            <span>签到时间</span>
+                        </div>
+                        <div>
+                            <span>时间校验</span>
                             <strong>
                                 {summary.withinTimeWindow === null
-                                    ? '待判断'
+                                    ? '待校验'
                                     : summary.withinTimeWindow
-                                        ? '在时间内'
-                                        : '不在时间内'}
+                                        ? '时段内'
+                                        : '时段外'}
                             </strong>
-                        </article>
-                        <article className="metric">
-                            <span>任务</span>
+                        </div>
+                        <div>
+                            <span>任务名称</span>
                             <strong>{summary.task?.taskName ?? '待获取'}</strong>
-                        </article>
-                        <article className="metric">
+                        </div>
+                        <div>
                             <span>执行结果</span>
                             <strong>
                                 {summary.signedSuccess
@@ -773,225 +797,228 @@ export default function App() {
                                             ? '执行失败'
                                             : '待执行'}
                             </strong>
-                        </article>
+                        </div>
                     </div>
 
-                    <div className="detail-list">
+                    <dl className="detail-list">
                         <div className="detail-row">
-                            <UserRound size={18} />
+                            <UserRound size={18} aria-hidden="true" />
                             <div>
-                                <span>账号信息</span>
-                                <strong>
+                                <dt>账号信息</dt>
+                                <dd>
                                     {summary.account
                                         ? `${summary.account.userName} · ${summary.account.accountNo}`
-                                        : '还没有登录结果'}
-                                </strong>
+                                        : '待获取'}
+                                </dd>
                             </div>
                         </div>
                         <div className="detail-row">
-                            <Clock3 size={18} />
+                            <Clock3 size={18} aria-hidden="true" />
                             <div>
-                                <span>签到窗口</span>
-                                <strong>
+                                <dt>签到窗口</dt>
+                                <dd>
                                     {summary.task
                                         ? `${summary.task.signStartTime} - ${summary.task.signEndTime}`
-                                        : '还没有任务窗口'}
-                                </strong>
+                                        : '待获取'}
+                                </dd>
                             </div>
                         </div>
                         <div className="detail-row">
-                            <ShieldCheck size={18} />
+                            <ShieldCheck size={18} aria-hidden="true" />
                             <div>
-                                <span>异常说明</span>
-                                <strong>{summary.error ?? '目前没有异常。'}</strong>
+                                <dt>异常说明</dt>
+                                <dd>{summary.error ?? '暂无异常'}</dd>
                             </div>
                         </div>
-                    </div>
-                </div>
-            </section>
+                    </dl>
+                </section>
 
-            <section className="capture-grid">
-                <div className={`capture-panel tone-${captureTone(captureSummary)}`}>
-                    <div className="section-heading">
-                        <h2>一键获取 OpenID</h2>
-                        <p>页面默认使用 mitmproxy 本地代理抓取；如果本机缺失 mitmdump，点击后会自动下载安装。调试器监听地址是 {debuggerWsUrl || '未读取'}。</p>
-                    </div>
-
-                    <div className="detail-list">
-                        <div className="detail-row">
-                            <Sparkles size={18} />
-                            <div>
-                                <span>当前动作</span>
-                                <strong>{captureStatus}</strong>
-                            </div>
+                <section className="panel capture-panel" id="openid-capture" aria-labelledby="capture-title">
+                    <header className="panel-header">
+                        <div>
+                            <h2 id="capture-title">OpenID 捕获</h2>
+                            <p>用于首次配置或新增签到账号。</p>
                         </div>
-                        <div className="detail-row">
-                            <Radar size={18} />
-                            <div>
+                        <span className={`panel-status tone-${captureTone(captureSummary)}`}>
+                            {isCapturing ? '监听中' : captureSummary.openid ? '已捕获' : '未启动'}
+                        </span>
+                    </header>
+
+                    <div className="capture-layout">
+                        <div className="capture-control">
+                            <div className={`capture-status tone-${captureTone(captureSummary)}`} role="status" aria-live="polite">
+                                <Radar size={20} aria-hidden="true" />
+                                <div>
+                                    <span>捕获状态</span>
+                                    <strong>{captureStatus}</strong>
+                                </div>
+                            </div>
+
+                            <div className="capture-result">
                                 <span>捕获结果</span>
-                                <strong>{captureSummary.openid ?? '还没有拿到 OpenID'}</strong>
+                                <code>{captureSummary.openid ?? '未捕获'}</code>
                             </div>
+
+                            <button
+                                type="button"
+                                className="primary-button full-width-button"
+                                onClick={handleCapture}
+                                disabled={isCapturing || isRunning}
+                            >
+                                {isCapturing ? <LoaderCircle className="spin" size={18} /> : <Radar size={18} />}
+                                <span>{isCapturing ? '正在监听登录请求' : captureButtonLabel}</span>
+                            </button>
                         </div>
-                        <div className="detail-row">
-                            <ShieldCheck size={18} />
-                            <div>
-                                <span>调试器回退状态</span>
-                                <strong>{debuggerStatus.running ? 'WMPFDebugger 已就绪（备用）' : '默认不自动回退到 WMPFDebugger'}</strong>
-                            </div>
+
+                        <ol className="steps-list" aria-label="OpenID 捕获步骤">
+                            <li>点击“启动捕获”，等待状态显示监听中。</li>
+                            <li>在微信打开“中南林业科技大学学生工作部”小程序，进入“我的”并重新登录。</li>
+                            <li>捕获成功后，OpenID 将自动保存并加入签到账号。</li>
+                        </ol>
+                    </div>
+
+                    <dl className="metadata-grid compact-metadata">
+                        <div>
+                            <dt>开始时间</dt>
+                            <dd>{formatDateTime(captureSummary.startedAt)}</dd>
                         </div>
-                    </div>
+                        <div>
+                            <dt>结束时间</dt>
+                            <dd>{formatDateTime(captureSummary.completedAt)}</dd>
+                        </div>
+                        <div>
+                            <dt>保存状态</dt>
+                            <dd>{captureSummary.saved ? '已保存' : '未保存'}</dd>
+                        </div>
+                    </dl>
 
-                    <div className="action-row single-action">
-                        <button
-                            type="button"
-                            className="primary-button"
-                            onClick={handleCapture}
-                            disabled={isCapturing || isRunning}
-                        >
-                            {isCapturing ? <LoaderCircle className="spin" size={18} /> : <Radar size={18} />}
-                            <span>{isCapturing ? '正在准备并监听登录请求' : captureButtonLabel}</span>
-                        </button>
-                    </div>
+                    <details className="advanced-details">
+                        <summary>高级信息</summary>
+                        <dl>
+                            <div><dt>捕获方式</dt><dd>mitmproxy</dd></div>
+                            <div><dt>监听地址</dt><dd><code>{debuggerWsUrl || '未配置'}</code></dd></div>
+                            <div><dt>备用调试器</dt><dd>{debuggerStatus.running ? '可用' : '未启用'}</dd></div>
+                        </dl>
+                    </details>
+                </section>
 
-                    <div className="fact-strip capture-facts">
-                        <article>
-                            <span>开始时间</span>
-                            <strong>{formatDateTime(captureSummary.startedAt)}</strong>
-                        </article>
-                        <article>
-                            <span>结束时间</span>
-                            <strong>{formatDateTime(captureSummary.completedAt)}</strong>
-                        </article>
-                        <article>
-                            <span>保存状态</span>
-                            <strong>{captureSummary.saved ? '已写入 .env' : '待写入'}</strong>
-                        </article>
-                    </div>
-                </div>
+                <section className="panel schedule-panel" aria-labelledby="schedule-title">
+                    <header className="panel-header">
+                        <div>
+                            <h2 id="schedule-title">定时签到</h2>
+                            <p>本地服务运行期间有效。</p>
+                        </div>
+                        <span className={scheduleMeta.runtimeActive ? 'panel-status tone-success' : 'panel-status tone-neutral'}>
+                            {scheduleMeta.runtimeActive ? '运行中' : '未运行'}
+                        </span>
+                    </header>
 
-                <div className="capture-notes">
-                    <div className="section-heading">
-                        <h2>你只需要做什么</h2>
-                        <p>这里尽量把复杂步骤都吃掉，外部动作只剩微信里那一下。</p>
-                    </div>
-
-                    <div className="notes-list">
-                        <article className="note-item">
-                            <span>01</span>
-                            <p>点一次主按钮，页面会自动准备本地抓取环境。</p>
-                        </article>
-                        <article className="note-item">
-                            <span>02</span>
-                            <p>微信里打开“中南林业科技大学学生工作部”小程序，进入“我的”页面， 重新进行登录， 来发送API请求让系统捕获你的OpenID。</p>
-                        </article>
-                        <article className="note-item">
-                            <span>03</span>
-                            <p>看到页面提示监听就绪后，在微信里点一次登录，OpenID 会自动回填并保存。</p>
-                        </article>
-                    </div>
-                </div>
-            </section>
-
-            <section className="schedule-grid">
-                <div className="schedule-panel">
-                    <div className="section-heading">
-                        <h2>定时自动签到</h2>
-                        <p>配置一次后，只要本地服务保持运行，内置调度器就会在指定时间自动触发签到。</p>
-                    </div>
-
-                    <label className="toggle-row">
-                        <span>启用定时任务</span>
-                        <input
-                            type="checkbox"
-                            checked={schedule.enabled}
-                            onChange={(event) => setSchedule((current) => ({ ...current, enabled: event.target.checked }))}
-                        />
+                    <label className="switch-row" htmlFor="schedule-enabled">
+                        <span>
+                            <strong>启用定时任务</strong>
+                            <small>{schedule.enabled ? '已开启' : '已关闭'}</small>
+                        </span>
+                        <span className="switch-control">
+                            <input
+                                id="schedule-enabled"
+                                type="checkbox"
+                                checked={schedule.enabled}
+                                onChange={(event) => setSchedule((current) => ({ ...current, enabled: event.target.checked }))}
+                            />
+                            <span className="switch-track" aria-hidden="true"><span /></span>
+                        </span>
                     </label>
 
-                    <div className="mode-grid">
+                    <div className="mode-grid" role="group" aria-label="执行频率">
                         <button
                             type="button"
                             className={schedule.mode === 'daily' ? 'mode-button active' : 'mode-button'}
+                            aria-pressed={schedule.mode === 'daily'}
                             onClick={() => setSchedule((current) => ({ ...current, mode: 'daily' }))}
                         >
-                            <CalendarDays size={18} />
+                            <CalendarDays size={17} aria-hidden="true" />
                             <span>每天</span>
                         </button>
                         <button
                             type="button"
                             className={schedule.mode === 'weekdays' ? 'mode-button active' : 'mode-button'}
+                            aria-pressed={schedule.mode === 'weekdays'}
                             onClick={() => setSchedule((current) => ({ ...current, mode: 'weekdays' }))}
                         >
-                            <BadgeCheck size={18} />
+                            <BadgeCheck size={17} aria-hidden="true" />
                             <span>工作日</span>
                         </button>
                         <button
                             type="button"
                             className={schedule.mode === 'dates' ? 'mode-button active' : 'mode-button'}
+                            aria-pressed={schedule.mode === 'dates'}
                             onClick={() => setSchedule((current) => ({ ...current, mode: 'dates' }))}
                         >
-                            <CalendarRange size={18} />
+                            <CalendarRange size={17} aria-hidden="true" />
                             <span>指定日期</span>
                         </button>
                     </div>
 
-                    <label className="field">
-                        <span className="field-label">触发时间</span>
-                        <div className="field-input">
-                            <Clock3 size={18} />
-                            <input
-                                type="time"
-                                value={schedule.time}
-                                onChange={(event) => setSchedule((current) => ({ ...current, time: event.target.value }))}
-                            />
-                        </div>
-                    </label>
+                    <div className="schedule-form-grid">
+                        <label className="field" htmlFor="schedule-time">
+                            <span className="field-label">执行时间</span>
+                            <div className="field-input">
+                                <input
+                                    id="schedule-time"
+                                    type="time"
+                                    value={schedule.time}
+                                    onChange={(event) => setSchedule((current) => ({ ...current, time: event.target.value }))}
+                                />
+                            </div>
+                        </label>
+
+                        {schedule.mode === 'dates' ? (
+                            <div className="field">
+                                <span className="field-label">指定日期</span>
+                                <div className="date-entry">
+                                    <input
+                                        id="schedule-date"
+                                        aria-label="选择签到日期"
+                                        type="date"
+                                        value={scheduleDateInput}
+                                        onChange={(event) => setScheduleDateInput(event.target.value)}
+                                    />
+                                    <button type="button" className="secondary-button compact-button" onClick={addScheduleDate} disabled={!scheduleDateInput}>
+                                        <Plus size={16} aria-hidden="true" />
+                                        <span>添加</span>
+                                    </button>
+                                </div>
+                            </div>
+                        ) : null}
+                    </div>
 
                     {schedule.mode === 'dates' ? (
-                        <div className="dates-panel">
-                            <div className="date-entry">
-                                <input
-                                    type="date"
-                                    value={scheduleDateInput}
-                                    onChange={(event) => setScheduleDateInput(event.target.value)}
-                                />
-                                <button type="button" className="secondary-button compact-button" onClick={addScheduleDate}>
-                                    <Plus size={16} />
-                                    <span>添加日期</span>
-                                </button>
-                            </div>
-                            <div className="date-chip-list">
-                                {schedule.dates.length > 0 ? schedule.dates.map((value) => (
-                                    <button
-                                        key={value}
-                                        type="button"
-                                        className="date-chip"
-                                        onClick={() => removeScheduleDate(value)}
-                                    >
-                                        <span>{value}</span>
+                        <div className="date-token-list" aria-label="已选日期">
+                            {schedule.dates.length > 0 ? schedule.dates.map((value) => (
+                                <div key={value} className="date-token">
+                                    <span>{value}</span>
+                                    <button type="button" className="icon-button" onClick={() => removeScheduleDate(value)} aria-label={`移除日期 ${value}`} title="移除日期">
                                         <Trash2 size={14} />
                                     </button>
-                                )) : (
-                                    <span className="helper-text">还没有指定日期。</span>
-                                )}
-                            </div>
+                                </div>
+                            )) : <span className="helper-text">未选择日期。</span>}
                         </div>
                     ) : null}
 
-                    <div className="fact-strip schedule-facts">
-                        <article>
-                            <span>调度状态</span>
-                            <strong>{scheduleMeta.runtimeActive ? '运行中' : '未运行'}</strong>
-                        </article>
-                        <article>
-                            <span>下次执行</span>
-                            <strong>{formatDateTimeVerbose(schedule.nextRunAt)}</strong>
-                        </article>
-                        <article>
-                            <span>最近触发</span>
-                            <strong>{formatDateTimeVerbose(scheduleMeta.lastTriggeredAt)}</strong>
-                        </article>
-                    </div>
+                    <dl className="metadata-grid">
+                        <div>
+                            <dt>下次执行</dt>
+                            <dd>{formatDateTimeVerbose(schedule.nextRunAt)}</dd>
+                        </div>
+                        <div>
+                            <dt>最近触发</dt>
+                            <dd>{formatDateTimeVerbose(scheduleMeta.lastTriggeredAt)}</dd>
+                        </div>
+                        <div>
+                            <dt>时区</dt>
+                            <dd>{scheduleMeta.timezone}</dd>
+                        </div>
+                    </dl>
 
                     <button
                         type="button"
@@ -1000,48 +1027,38 @@ export default function App() {
                         disabled={isSavingSchedule || isRunning || isCapturing}
                     >
                         {isSavingSchedule ? <LoaderCircle className="spin" size={18} /> : <CalendarDays size={18} />}
-                        <span>{isSavingSchedule ? '正在保存定时配置' : '保存定时配置'}</span>
+                        <span>{isSavingSchedule ? '保存中' : '保存定时任务'}</span>
                     </button>
-                </div>
 
-                <div className="schedule-notes">
-                    <div className="section-heading">
-                        <h2>调度说明</h2>
-                        <p>这里配的是规则，服务进程会用 node-cron 每天定时触发，再由脚本判断今天要不要真正签到。</p>
-                    </div>
+                    <details className="advanced-details">
+                        <summary>高级信息</summary>
+                        <dl>
+                            <div><dt>调度器</dt><dd><code>{scheduleMeta.driver}</code></dd></div>
+                            <div><dt>规则</dt><dd><code>{scheduleMeta.cronPattern || '未生成'}</code></dd></div>
+                        </dl>
+                    </details>
+                </section>
 
-                    <div className="notes-list">
-                        <article className="note-item">
-                            <span>01</span>
-                            <p>“每天”和“工作日”都会在服务进程里注册一个固定时间的 node-cron 任务，再由脚本判断今天是否该执行。</p>
-                        </article>
-                        <article className="note-item">
-                            <span>02</span>
-                            <p>“指定日期”同样会在每天固定时间触发一次，但只有你选中的日期才会真正签到。</p>
-                        </article>
-                        <article className="note-item">
-                            <span>03</span>
-                            <p>当前调度驱动是 {scheduleMeta.driver}，时区为 {scheduleMeta.timezone}，最近执行结果会写回页面。</p>
-                        </article>
-                    </div>
-                </div>
-            </section>
+                <section className="panel logs-panel" aria-labelledby="logs-title">
+                    <header className="panel-header">
+                        <div>
+                            <h2 id="logs-title">运行日志</h2>
+                            <p>按时间倒序显示。</p>
+                        </div>
+                        <span className="count-badge">{logs.length} 条</span>
+                    </header>
 
-            <section className="timeline">
-                <div className="section-heading">
-                    <h2>活动日志</h2>
-                    <p>日志按最新在上排列，方便你盯住最后一个关键动作。</p>
-                </div>
-
-                <div className="timeline-list">
+                    <div className="log-list" role="log" aria-live="polite" aria-relevant="additions">
                     {logs.map((log) => (
-                        <article key={log.id} className={`timeline-item tone-${log.tone}`}>
-                            <span>{log.time}</span>
+                        <div key={log.id} className={`log-row tone-${log.tone}`}>
+                            <time>{log.time}</time>
+                            <span className="log-marker" aria-hidden="true" />
                             <p>{log.message}</p>
-                        </article>
+                        </div>
                     ))}
-                </div>
-            </section>
+                    </div>
+                </section>
+            </div>
         </main>
     );
 }
