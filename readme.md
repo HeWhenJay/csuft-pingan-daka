@@ -4,6 +4,8 @@
 
 **常用检索词：** 中南林业科技大学 平安打卡、中南林业科技大学 平安签到、中南林业科技大学 晚打卡、中南林业科技大学平安打卡、CSUFT 平安打卡。
 
+> **项目来源：** 本项目最初 Fork 自 [186526/csuft-unsafe-dorm](https://github.com/186526/csuft-unsafe-dorm)，并在 [HeWhenJay/csuft-unsafe-dorm](https://github.com/HeWhenJay/csuft-unsafe-dorm) 中继续开发。为便于 GitHub 检索和独立维护，当前版本另行发布为非 Fork 网络仓库；原始作者、MIT 许可证和 Git 提交历史均予以保留。
+
 ## Quick Start
 
 ```bash
