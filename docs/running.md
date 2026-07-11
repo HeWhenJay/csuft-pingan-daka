@@ -2,25 +2,26 @@
 
 csuft-unsafe-dorm 作为一个库，在 `src/scripts/index.ts` 提供了一个默认的 autosign script 实现。
 
-如果仅需要基础的虚拟签到，可以直接运行 `yarn run script` 来执行这个脚本。
+如果仅需要基础签到，可以直接运行 `npm run script` 来执行这个脚本。
 
 下列是详细的配置说明：
 
 1. 环境准备
-    - 确保你已经安装了 Node.js 和 Yarn。
+    - 安装 Node.js `20.19.x` 或 `22.12+`，推荐 Node.js 24 LTS。
+    - 使用 Node.js 自带的 npm；Yarn 不是必需环境。
 
 2. 安装依赖
     - 使用 git 克隆项目到本地：
 
         ```bash
-        git clone https://github.com/186526/csuft-unsafe-dorm
+        git clone https://github.com/HeWhenJay/csuft-pingan-daka.git
         ```
 
     - 进入项目目录并安装依赖：
 
         ```bash
-        cd csuft-unsafe-dorm
-        yarn
+        cd csuft-pingan-daka
+        npm install
         ```
 
 3. 抓取 OpenId 信息
@@ -45,12 +46,10 @@ csuft-unsafe-dorm 作为一个库，在 `src/scripts/index.ts` 提供了一个�
     - 运行以下命令来执行脚本：
 
         ```bash
-        > yarn run script
-        yarn run v1.22.22
+        > npm run script
         $ npm run build && node out/scripts/index.js
         计算定位偏移  109.9 m
         true
-        Done in 4.84s.
         ```
 
     - 脚本会自动使用你提供的 OpenId 进行鉴权，并执行签到操作。
@@ -66,7 +65,7 @@ csuft-unsafe-dorm 作为一个库，在 `src/scripts/index.ts` 提供了一个�
     - 在 crontab 文件中添加以下行来每天晚上 10 点执行脚本：（请先检查你的系统时间和时区设置，确保定时任务在正确的时间执行）
 
         ```bash
-        0 22 * * * cd /path/to/csuft-unsafe-dorm && yarn run script >> /path/to/logfile.log 2>&1
+        0 22 * * * cd /path/to/csuft-pingan-daka && npm run script >> /path/to/logfile.log 2>&1
         ```
 
     - 替换 `/path/to/csuft-unsafe-dorm` 为你本地项目的实际路径，替换 `/path/to/logfile.log` 为你希望保存日志的文件路径。

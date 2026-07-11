@@ -1,4 +1,6 @@
-# Hook WMPF to get openid for csuft-unsafe-dorm
+# WMPFDebugger 备用 OpenID 捕获说明
+
+> 当前 Web 控制台默认使用 mitmproxy 捕获 OpenID。只有设置 `ENABLE_WMPF_DEBUGGER_FALLBACK=1`，并且默认捕获方式不可用时，才会尝试 WMPFDebugger。本文保留用于备用方案和手动排查。
 
 以下内容仅供学习和研究使用，请勿用于任何非法用途。
 

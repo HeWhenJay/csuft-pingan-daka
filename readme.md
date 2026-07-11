@@ -1,175 +1,164 @@
-# 中南林业科技大学平安打卡（CSUFT 平安签到 / 平安打卡）
+# 中南林业科技大学平安打卡（CSUFT 平安签到 / 晚打卡）
 
-面向中南林业科技大学（CSUFT）的平安打卡自动化工具，使用 TypeScript 实现，支持平安签到、平安打卡、OpenID、多账号、定时任务和 Web 控制面板。
+面向中南林业科技大学（CSUFT）的平安打卡自动化工具，使用 TypeScript 实现，支持 OpenID、多账号签到、定时任务和本地 Web 控制台。
 
-**常用检索词：** 中南林业科技大学 平安打卡、中南林业科技大学 平安签到、中南林业科技大学 平安打卡、中南林业科技大学平安打卡、CSUFT 平安打卡。
+**常用检索词：** 中南林业科技大学 平安打卡、中南林业科技大学 平安签到、中南林业科技大学 晚打卡、中南林业科技大学平安打卡、CSUFT 平安打卡。
 
 > **项目来源：** 本项目最初 Fork 自 [186526/csuft-unsafe-dorm](https://github.com/186526/csuft-unsafe-dorm)，并在 [HeWhenJay/csuft-unsafe-dorm](https://github.com/HeWhenJay/csuft-unsafe-dorm) 中继续开发。为便于 GitHub 检索和独立维护，当前版本另行发布为非 Fork 网络仓库；原始作者、MIT 许可证和 Git 提交历史均予以保留。
 
-## Quick Start
-
-```bash
-npm install
-npm run dev
-```
-
-- Running `npm install` in the repo root installs both the root dependencies and the `web/` Vite dependencies.
-- If someone runs `npm run dev` before installing, the project now auto-installs the missing root and `web/` packages first.
-- `requirements.txt` is not the fix for a missing `vite` or `node_modules` error. This project uses `package.json` and npm lockfiles for its main dependencies. A Python requirements file only makes sense for standalone Python tooling.
-
-## Running
-
-阅读 [running csuft-unsafe-dorm as script](./docs/running.md) 的教程来了解如何把 csuft-unsafe-dorm 作为一个自动签到脚本来运行。
-
-## License
-
-本仓库仅供学习和研究使用，请勿用于任何非法用途。  
-使用者需自行承担使用后果与责任。  
-仓库维护者有权删除或拒绝可能导致违规滥用的实现与需求。
-
-## References
-
-- [请求签名机制分析 - github.com/Feather-P/ahut-dorm-sign](https://github.com/Feather-P/ahut-dorm-sign/blob/master/docs/%E8%AF%B7%E6%B1%82%E7%AD%BE%E5%90%8D%E5%88%86%E6%9E%90.md)
 ## 项目功能
 
-- 支持使用 OpenID 进行认证与签到
-- 支持单账号和多账号连续签到
-- 支持本地页面保存 OpenID、抓取 OpenID、手动执行签到
-- 支持配置每天、工作日、指定日期的自动签到
-- 支持自动签到失败补跑，同一天成功后自动去重
-- 支持本地中文日志记录，便于查看每次自动签到结果
+- 使用 OpenID 完成单账号或多账号签到
+- 在本地控制台保存账号、执行签到并查看结果
+- 通过 Windows 本地代理捕获 OpenID
+- 配置每天、工作日或指定日期的定时签到
+- 签到失败后允许补跑，同一天成功后自动去重
+- 保存中文运行日志和定时任务日志
 
-## 使用说明
+## 环境要求
+
+### 基础运行环境
+
+| 项目 | 要求 |
+| --- | --- |
+| 操作系统 | 使用已有 OpenID 时可运行于 Windows、macOS 或 Linux；一键捕获 OpenID 仅支持 Windows，建议 Windows 10/11 |
+| Node.js | Node.js `20.19.x` 或 `22.12+`；推荐 Node.js 24 LTS |
+| npm | 使用 Node.js 自带的 npm，建议 npm 10 或 11；Yarn 不是必需环境 |
+| JavaScript 依赖 | 在仓库根目录执行 `npm install`，不要使用 `--omit=dev` |
+| 浏览器 | 现代版 Edge、Chrome 或 Firefox，用于访问本地控制台 |
+| 网络 | 首次安装依赖和执行签到时需要联网 |
+| 文件权限 | 仓库目录需要可写，用于保存 `.env`、`.codex-tools/`、调度配置和日志 |
+
+### 一键捕获 OpenID 的额外环境
+
+| 项目 | 要求 |
+| --- | --- |
+| Windows | 捕获流程依赖 PowerShell、当前用户系统代理和证书库，因此仅支持 Windows |
+| Python | 已有可用 `mitmdump` 时不需要；否则建议安装带 `venv` 和 `pip` 的标准 CPython 3.12+ |
+| mitmproxy | 优先使用 PATH 中的 `mitmdump`；缺失时项目会自动安装到 `.codex-tools/mitmproxy/venv` |
+| Windows 微信 | 需要安装并运行电脑版微信，打开“中南林业科技大学学生工作部”小程序后重新登录 |
+| WMPFDebugger | 默认不启用；仅在设置 `ENABLE_WMPF_DEBUGGER_FALLBACK=1` 后作为备用捕获方案 |
+| Git | 默认 mitmproxy 捕获不依赖 Git；自动安装 WMPFDebugger 备用方案时需要 Git |
+
+> **捕获安全说明：** 首次捕获会把 mitmproxy CA 安装到当前用户根证书库，并临时将当前用户系统代理设置为 `127.0.0.1:8866`。捕获结束后程序会恢复原代理设置。请只在自己信任的 Windows 设备上执行。
+
+### 本地端口
+
+| 端口 | 用途 | 使用场景 |
+| --- | --- | --- |
+| `3001` | 后端 API 和控制台入口 | 启动项目后访问 `http://127.0.0.1:3001` |
+| `4173` | Vite 开发服务器 | `npm run dev` |
+| `8866` | mitmproxy 本地代理 | 捕获 OpenID |
+| `62000` | WMPFDebugger WebSocket | 仅备用捕获方案 |
+
+启动前请确认所需端口没有被其他程序占用。
+
+## 快速开始
 
 ### 1. 安装依赖
 
-在项目根目录执行：
-
 ```bash
 npm install
 ```
 
-或：
-
-```bash
-yarn
-```
+根目录安装完成后会自动安装 `web/` 前端依赖。如果直接执行 `npm run dev`，项目也会检查并补装缺失的依赖。
 
 ### 2. 配置 OpenID
 
-在项目根目录创建 `.env` 文件，并写入：
+已有 OpenID 时，在项目根目录创建 `.env`：
 
 ```env
 openid=你的openid
 ```
 
-如果有多个账号，可以使用英文逗号分隔：
+多账号使用英文逗号分隔：
 
 ```env
 openid=openid_1,openid_2
 ```
 
-### 3. 手动运行脚本
+没有 OpenID 时，可以先启动控制台，再使用页面中的“OpenID 捕获”。
 
-执行：
+### 3. 启动本地控制台
+
+```bash
+npm run dev
+```
+
+启动成功后访问：
+
+```text
+http://127.0.0.1:3001
+```
+
+控制台会显示本地服务状态、账号配置、最近结果、OpenID 捕获、定时签到和运行日志。
+
+![平安打卡控制台总览](./docs/ui-overview.png)
+
+### 4. 捕获 OpenID
+
+1. 在控制台中点击“启动捕获”。
+2. 等待页面显示正在监听登录请求。
+3. 在 Windows 微信中打开“中南林业科技大学学生工作部”小程序。
+4. 进入“我的”并重新登录一次。
+5. 捕获成功后，OpenID 会自动保存并加入签到账号。
+
+第一次执行可能需要下载并安装 mitmproxy，耗时取决于当前网络。不要在捕获过程中手动关闭终端。
+
+![OpenID 捕获区域](./docs/ui-openid-capture.png)
+
+### 5. 执行签到
+
+确认签到账号无误后，点击“执行签到”。控制台会依次显示登录、时间校验、任务名称、执行结果和运行日志。
+
+只运行命令行脚本时，可以执行：
 
 ```bash
 npm run script
 ```
 
-### 4. 启动本地页面
+### 6. 配置定时签到
 
-执行：
+在“定时签到”区域选择每天、工作日或指定日期，设置执行时间后点击“保存定时任务”。
 
-```bash
-npm run dev
-```
+定时任务依赖本地后端进程持续运行；关闭 `npm run dev` 后，页面内的 `node-cron` 调度也会停止。
 
-启动后可在本地页面中完成：
+![定时签到配置](./docs/ui-schedule.png)
 
-- 保存 OpenID
-- 抓取 OpenID
-- 手动签到
-- 配置自动签到
-- 查看最近一次执行结果
+## 常用命令
 
-### 5. 自动签到说明
+| 命令 | 用途 |
+| --- | --- |
+| `npm run dev` | 同时启动后端 API 和 Vite 前端 |
+| `npm run build` | 编译 TypeScript 后端 |
+| `npm run build:web` | 构建前端静态文件 |
+| `npm run script` | 使用 `.env` 中的 OpenID 手动签到 |
+| `npm run script:schedule-runner` | 执行一次计划任务签到入口 |
 
-- 保存自动签到配置后，项目会在当前后端进程内注册 `node-cron` 定时任务
-- 到达设定时间后，会自动触发签到脚本
-- 如果当天已成功签到，后续重复触发会自动跳过
-- 如果当天触发失败，后续触发仍可继续补跑
-
-### 6. 日志位置
+## 日志位置
 
 - 计划任务总日志：`scheduled-task.log`
-- 每次自动签到独立日志目录：`日志`
+- 每次自动签到的独立日志目录：`日志/`
+- OpenID 捕获工具和运行文件：`.codex-tools/`
 
-自动签到独立日志文件命名格式为：
-
-`年-月-日-时-分-秒+结果.log`
-
-示例：
-
-- `2026-05-08-21-28-26成功.log`
-- `2026-05-08-21-29-28跳过.log`
-
-## 图文使用说明
-
-### 1. 打开终端到当前项目所在目录，运行 `npm run dev`
-
-在项目根目录打开终端，执行下面的命令启动前后端开发服务：
-
-```bash
-npm run dev
-```
-
-正常情况下，终端会先输出启动命令和服务启动信息。如果后端未正常启动，也可以根据终端输出继续排查。
-
-![图片一](./docs/img_1.png)
-
-![图片二](./docs/img_2.png)
-
-### 2. 在浏览器中输入 `localhost:3001` 进入前端界面
-
-服务启动后，在浏览器地址栏输入：
+独立签到日志命名格式为：
 
 ```text
-http://localhost:3001
+年-月-日-时-分-秒+结果.log
 ```
 
-进入前端界面后，可以看到首页中的“配置与执行”“结果概览”等区域。
+## 相关文档
 
-![图片三](./docs/img_3.png)
+- [命令行脚本与外部定时任务](./docs/running.md)
+- [WMPFDebugger 备用捕获说明](./docs/openid.md)
+- [请求签名机制分析](https://github.com/Feather-P/ahut-dorm-sign/blob/master/docs/%E8%AF%B7%E6%B1%82%E7%AD%BE%E5%90%8D%E6%9C%BA%E5%88%B6%E5%88%86%E6%9E%90.md)
 
-### 3. 下滑至“一键获取 OpenID”界面并点击“开始捕获 OpenID”
+## 使用与许可
 
-在页面中向下滚动，找到“一键获取 OpenID”模块。
+本仓库仅供学习和研究使用，请勿用于任何非法用途。
 
-点击“开始捕获 OpenID”后，页面会自动准备本地抓取环境；如果环境正常，页面会进入监听状态，等待你在微信小程序里重新登录。
+使用者需自行承担使用后果与责任。
 
-![图片四](./docs/img_4.png)
+仓库维护者有权删除或拒绝可能导致违规滥用的实现与需求。
 
-![图片五](./docs/img_5.png)
-
-### 4. 打开微信小程序，重新进行登录，完成 OpenID 的捕获
-
-打开微信小程序，重新执行登录操作。当前端监听页面捕获到登录请求后，会自动识别并提取 OpenID。
-
-当捕获成功后，前端页面会显示你的 OpenID，并提示捕获完成。此时即使小程序登录页面还在转圈，OpenID 也已经被成功抓取。
-
-![图片六](./docs/img_6.png)
-
-### 5. 回到“配置与执行”界面，确认 OpenID 已自动填写，然后点击“签到”
-
-此时返回“配置与执行”区域，可以看到 OpenID 已经自动写入到当前待签到账号列表中。
-
-确认无误后，点击“立即签到”按钮即可发起签到流程。
-
-![图片七](./docs/img_7.png)
-
-## 运行结果展示
-
-下面是签到执行结果展示示例，可用于快速确认页面是否已经正常进入执行阶段。
-
-![图片八](./docs/img_8.png)
+项目使用 [MIT License](./LICENSE)。
