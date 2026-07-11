@@ -107,6 +107,10 @@ http://127.0.0.1:3001
 
 ![OpenID 捕获区域](./docs/ui-openid-capture.png)
 
+下面是 Windows 微信小程序重新登录后，控制台成功捕获并保存 OpenID 的实际效果。图中的账号标识已经遮挡。
+
+![真实 OpenID 捕获示例](./docs/ui-openid-capture-live.png)
+
 ### 5. 执行签到
 
 确认签到账号无误后，点击“执行签到”。控制台会依次显示登录、时间校验、任务名称、执行结果和运行日志。
