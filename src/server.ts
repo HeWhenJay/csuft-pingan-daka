@@ -355,6 +355,20 @@ function normalizeJsonArray<T>(value: unknown): T[] {
 }
 
 async function listWechatRuntimeProcesses(): Promise<WechatRuntimeProcess[]> {
+    if (process.platform !== 'win32') {
+        try {
+            const output = await runCommandCaptureOutput('ps', ['-axo', 'pid=,ppid=,comm=,args='], ROOT);
+            return output.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).flatMap((line) => {
+                const match = line.match(/^(\d+)\s+(\d+)\s+([^\s]+)\s*(.*)$/);
+                if (!match || !/wechat|weixin|wmpf/i.test(line)) return [];
+                return [{ name: path.basename(match[3]), pid: Number(match[1]), parentPid: Number(match[2]), path: match[4] || match[3] }];
+            });
+        }
+        catch {
+            return [];
+        }
+    }
+
     const output = await runPowerShell(`
         $items = @(
             Get-CimInstance Win32_Process | Where-Object {
@@ -1102,6 +1116,10 @@ async function buildScheduleResponse(config: ScheduleConfig): Promise<ScheduleAp
 }
 
 async function readProxySettings(): Promise<ProxySettings> {
+    if (process.platform !== 'win32') {
+        return await readMacProxySettings();
+    }
+
     const output = await runPowerShell(`
         $path = 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings'
         $item = Get-ItemProperty $path
@@ -1120,6 +1138,11 @@ function escapePowerShell(value: string) {
 }
 
 async function applyProxySettings(settings: ProxySettings) {
+    if (process.platform !== 'win32') {
+        await applyMacProxySettings(settings);
+        return;
+    }
+
     const script = `
         $path = 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings'
         Set-ItemProperty $path ProxyEnable ${settings.ProxyEnable}
@@ -1137,11 +1160,41 @@ public static class NativeWinInet {
     [DllImport("wininet.dll", SetLastError=true)]
     public static extern bool InternetSetOption(IntPtr hInternet, int dwOption, IntPtr lpBuffer, int dwBufferLength);
 }
+
 "@
         [NativeWinInet]::InternetSetOption([IntPtr]::Zero, 39, [IntPtr]::Zero, 0) | Out-Null
         [NativeWinInet]::InternetSetOption([IntPtr]::Zero, 37, [IntPtr]::Zero, 0) | Out-Null
     `;
     await runPowerShell(script);
+}
+
+async function getMacNetworkService() {
+    const output = await runCommandCaptureOutput('networksetup', ['-listallnetworkservices'], ROOT);
+    return output.split(/\r?\n/).map((line) => line.trim()).find((line) => line && !line.startsWith('An asterisk')) ?? null;
+}
+
+async function readMacProxySettings(): Promise<ProxySettings> {
+    const service = await getMacNetworkService();
+    if (!service) return { ProxyEnable: 0, ProxyServer: '', ProxyOverride: '', AutoConfigURL: '' };
+    const output = await runCommandCaptureOutput('networksetup', ['-getwebproxy', service], ROOT);
+    const enabled = /^Enabled:\s*Yes$/im.test(output);
+    const server = output.match(/^Server:\s*(.*)$/im)?.[1]?.trim() ?? '';
+    const port = output.match(/^Port:\s*(.*)$/im)?.[1]?.trim() ?? '';
+    const proxyServer = server && port ? server + ':' + port : server;
+    return { ProxyEnable: enabled ? 1 : 0, ProxyServer: proxyServer, ProxyOverride: '', AutoConfigURL: '' };
+}
+
+async function applyMacProxySettings(settings: ProxySettings) {
+    const service = await getMacNetworkService();
+    if (!service) return;
+    const [host, port = '80'] = (settings.ProxyServer ?? '').split(':');
+    if (settings.ProxyEnable && host) {
+        await runCommand('networksetup', ['-setwebproxy', service, host, port], ROOT);
+        await runCommand('networksetup', ['-setwebproxystate', service, 'on'], ROOT);
+    }
+    else {
+        await runCommand('networksetup', ['-setwebproxystate', service, 'off'], ROOT);
+    }
 }
 
 function mergeProxyOverride(current: string, extra: string[]) {
@@ -1162,6 +1215,19 @@ function mergeProxyOverride(current: string, extra: string[]) {
 async function ensureMitmCertificate(onStatus: (message: string, stage: string) => void) {
     if (!existsSync(MITM_CERT_PATH)) {
         throw new Error(`mitmproxy certificate was not found at ${MITM_CERT_PATH}.`);
+    }
+
+    if (process.platform !== 'win32') {
+        try {
+            await runCommand('security', ['verify-cert', '-c', MITM_CERT_PATH], ROOT);
+            onStatus('mitmproxy root certificate is already trusted.', 'certificate');
+            return;
+        }
+        catch {
+            onStatus('Installing the mitmproxy root certificate into the current user trust store.', 'certificate');
+            await runCommand('security', ['add-trusted-cert', '-r', 'trustRoot', '-k', path.join(process.env.HOME ?? '', 'Library', 'Keychains', 'login.keychain-db'), MITM_CERT_PATH], ROOT);
+            return;
+        }
     }
 
     const exactCertificateTrusted = await runPowerShell(`
